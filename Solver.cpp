@@ -1,6 +1,7 @@
 #include "Solver.h"
 #include <deque>
-#include <eigen/SparseCholesky>
+#include <iostream>
+
 #define beta 0.9
 #define EPSILON 1e-8
 #define MAX_ITERS 10000
@@ -156,7 +157,7 @@ void Solver::lbfgs(int m)
     }
 }
 
-void interiorPoint()
+void Solver::interiorPoint()
 {
     // TODO
 }

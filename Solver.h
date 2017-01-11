@@ -1,17 +1,13 @@
 #pragma once
 
 #include <stdlib.h>
-#include <string>
 #include <vector>
-#include <iostream>
-#include "math.h"
-#include <eigen/Core>
 #include <eigen/Dense>
-#include <eigen/SparseCore>
+#include <eigen/Sparse>
 
 using namespace std;
-using namespace Eigen;
 using namespace placeholders;
+using namespace Eigen;
 
 #define GRADIENT_DESCENT 0
 #define NEWTON 1
