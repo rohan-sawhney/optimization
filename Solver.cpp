@@ -8,7 +8,7 @@
 void Solver::gradientDescent()
 {
     double f = 0.0, tp = 1.0;
-    handle->computeEnergy(f, x);
+    handle->computeObjective(f, x);
     obj.push_back(f);
     VectorXd xp = VectorXd::Zero(n);
     VectorXd v = VectorXd::Zero(n);
@@ -27,13 +27,13 @@ void Solver::gradientDescent()
         double fp = 0.0;
         VectorXd xn = v - t*g;
         VectorXd xnv = xn - v;
-        handle->computeEnergy(fp, v);
-        handle->computeEnergy(f, xn);
+        handle->computeObjective(fp, v);
+        handle->computeObjective(f, xn);
         while (f > fp + g.dot(xnv) + xnv.dot(xnv)/(2*t)) {
             t = beta*t;
             xn = v - t*g;
             xnv = xn - v;
-            handle->computeEnergy(f, xn);
+            handle->computeObjective(f, xn);
         }
     
         // update
@@ -48,9 +48,9 @@ void Solver::gradientDescent()
     }
 }
 
-void solvePositiveDefinite(VectorXd& x,
+void solvePositiveDefinite(const SparseMatrix<double>& A,
                            const VectorXd& b,
-                           const SparseMatrix<double>& A)
+                           VectorXd& x)
 {
     SimplicialCholesky<SparseMatrix<double>> solver(A);
     x = solver.solve(b);
@@ -59,7 +59,7 @@ void solvePositiveDefinite(VectorXd& x,
 void Solver::newton()
 {
     double f = 0.0;
-    handle->computeEnergy(f, x);
+    handle->computeObjective(f, x);
     obj.push_back(f);
 
     const double alpha = 0.5;
@@ -72,15 +72,15 @@ void Solver::newton()
         handle->computeHessian(H, x);
 
         VectorXd p;
-        solvePositiveDefinite(p, g, H);
-
+        solvePositiveDefinite(H, g, p);
+        
         // compute step size
         double t = 1.0;
         double fp = f;
-        handle->computeEnergy(f, x - t*p);
+        handle->computeObjective(f, x - t*p);
         while (f > fp - alpha*t*g.dot(p)) {
             t = beta*t;
-            handle->computeEnergy(f, x - t*p);
+            handle->computeObjective(f, x - t*p);
         }
         
         // terminate if f is not finite
@@ -99,7 +99,7 @@ void Solver::newton()
 void Solver::lbfgs(int m)
 {
     double f = 0.0;
-    handle->computeEnergy(f, x);
+    handle->computeObjective(f, x);
     obj.push_back(f);
     VectorXd g(n);
     handle->computeGradient(g, x);
@@ -129,10 +129,10 @@ void Solver::lbfgs(int m)
         // compute step size
         double t = 1.0;
         double fp = f;
-        handle->computeEnergy(f, x + t*p);
+        handle->computeObjective(f, x + t*p);
         while (f > fp + alpha*t*g.dot(p)) {
             t = beta*t;
-            handle->computeEnergy(f, x + t*p);
+            handle->computeObjective(f, x + t*p);
         }
         
         // update
@@ -156,6 +156,11 @@ void Solver::lbfgs(int m)
     }
 }
 
+void interiorPoint()
+{
+    // TODO
+}
+
 void Solver::solve(int method, int n, Handle *handle, int m)
 {
     // initialize
@@ -175,6 +180,9 @@ void Solver::solve(int method, int n, Handle *handle, int m)
             break;
         case LBFGS:
             lbfgs(m);
+            break;
+        case INTERIOR_POINT:
+            interiorPoint();
             break;
         default:
             break;

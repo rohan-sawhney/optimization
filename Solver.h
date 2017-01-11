@@ -16,10 +16,11 @@ using namespace placeholders;
 #define GRADIENT_DESCENT 0
 #define NEWTON 1
 #define LBFGS 2
+#define INTERIOR_POINT 3
 
 struct Handle {
     // typedefs
-    typedef function<void(double&, const VectorXd&)> ComputeEnergy;
+    typedef function<void(double&, const VectorXd&)> ComputeObjective;
     typedef function<void(VectorXd&, const VectorXd&)> ComputeGradient;
     typedef function<void(SparseMatrix<double>&, const VectorXd&)> ComputeHessian;
     
@@ -27,7 +28,7 @@ struct Handle {
     Handle() {}
     
     // member variables
-    ComputeEnergy computeEnergy;
+    ComputeObjective computeObjective;
     ComputeGradient computeGradient;
     ComputeHessian computeHessian;
 };
@@ -53,6 +54,9 @@ private:
     
     // lbfgs
     void lbfgs(int m);
+    
+    // interior point
+    void interiorPoint();
     
     // member variables
     int n;
