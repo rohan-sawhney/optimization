@@ -12,7 +12,6 @@ using namespace Eigen;
 #define GRADIENT_DESCENT 0
 #define NEWTON 1
 #define LBFGS 2
-#define INTERIOR_POINT 3
 
 struct Handle {
     // typedefs
@@ -50,9 +49,6 @@ private:
     
     // lbfgs
     void lbfgs(int m);
-    
-    // interior point
-    void interiorPoint();
     
     // member variables
     int n;

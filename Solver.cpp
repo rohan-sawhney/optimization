@@ -157,11 +157,6 @@ void Solver::lbfgs(int m)
     }
 }
 
-void Solver::interiorPoint()
-{
-    // TODO
-}
-
 void Solver::solve(int method, int n, Handle *handle, int m)
 {
     // initialize
@@ -174,16 +169,16 @@ void Solver::solve(int method, int n, Handle *handle, int m)
     // solve using selected method
     switch (method) {
         case GRADIENT_DESCENT:
+            cout << "Method: Accelerated Gradient Descent" << endl;
             gradientDescent();
             break;
         case NEWTON:
+            cout << "Method: Newton's Method" << endl;
             newton();
             break;
         case LBFGS:
+            cout << "Method: LBFGS" << endl;
             lbfgs(m);
-            break;
-        case INTERIOR_POINT:
-            interiorPoint();
             break;
         default:
             break;
