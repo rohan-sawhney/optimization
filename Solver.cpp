@@ -3,6 +3,8 @@
 #include <iostream>
 
 #define beta 0.9
+#define alpha 0.01
+#define mu 10.0
 #define EPSILON 1e-8
 #define MAX_ITERS 10000
 
@@ -62,7 +64,6 @@ void Solver::newton()
     handle->F(f, x);
     obj.push_back(f);
 
-    const double alpha = 0.5;
     while (true) {
         // compute update direction
         VectorXd g(n);
@@ -106,7 +107,6 @@ void Solver::lbfgs(int m)
     deque<VectorXd> s;
     deque<VectorXd> y;
     
-    const double alpha = 1e-4;
     while (true) {
         // compute update direction
         int l = min(k, m);
@@ -156,12 +156,188 @@ void Solver::lbfgs(int m)
     }
 }
 
-void Solver::interiorPoint(int m, int r)
+bool findFeasiblePoint()
 {
-    // TODO: phase 1 and phase 2
+    // TODO: Call interior point
+    return false;
 }
 
-void Solver::solve(int method, Handle *handle, int n, int m, int r)
+void computeDense(Handle *handle, VectorXd& g, VectorXd& h, MatrixXd& hg,
+                  MatrixXd& A, VectorXd& b, VectorXd& x)
+{
+    handle->gradF(g, x);
+    handle->H(h, x);
+    handle->gradH(hg, x);
+    handle->A(A, x);
+    handle->b(b, x);
+}
+
+void computeSparse(Handle *handle, SparseMatrix<double> H,
+                   SparseMatrix<double> hH, VectorXd& x)
+{
+    handle->hessF(H, x);
+    handle->hessH(hH, x);
+}
+
+double dualityGap(const VectorXd& h, const VectorXd& u)
+{
+    return -h.dot(u);
+}
+
+void assembleResidual(VectorXd& res,
+                      const VectorXd& x, const VectorXd& u, const VectorXd& v,
+                      const VectorXd& g, const VectorXd& h, MatrixXd& hg,
+                      const VectorXd& b, const MatrixXd& A,
+                      int n, int m, int r)
+{
+    res.block(0, 0, n, 1) = g + hg*u + A.transpose()*v;
+    res.block(n, 0, m, 1) = u.asDiagonal()*h + (1.0/mu)*(dualityGap(h, u)/m)*VectorXd::Ones(m);
+    res.block(n+m, 0, r, 1) = A*x - b;
+}
+
+void assembleHessian(SparseMatrix<double>& hess,
+                     const VectorXd& u, const SparseMatrix<double>& H,
+                     const VectorXd& h, const MatrixXd& hg, SparseMatrix<double>& hH,
+                     const MatrixXd& A, int n, int m, int r)
+{
+    int nm = n + m;
+    int nmr = nm + r;
+    vector<Triplet<double>> triplets;
+    
+    for (int i = 0; i < H.outerSize(); i++) {
+        for (SparseMatrix<double>::InnerIterator it(H, i); it; ++it) {
+            triplets.push_back(Triplet<double>(it.row(), it.col(), it.value()));
+        }
+    }
+    
+    for (int i = 0; i < hH.outerSize(); i++) {
+        for (SparseMatrix<double>::InnerIterator it(hH, i); it; ++it) {
+            int m = it.col()/n;
+            triplets.push_back(Triplet<double>(it.row(), it.col()%n, u(m)*it.value()));
+        }
+    }
+    
+    for (int i = n; i < nm; i++) {
+        triplets.push_back(Triplet<double>(i, i, h(i)));
+        for (int j = 0; j < n; j++) {
+            triplets.push_back(Triplet<double>(i, j, u(i)*hg(j, i)));
+            triplets.push_back(Triplet<double>(j, i, hg(j, i)));
+        }
+    }
+
+    for (int i = nm; i < nmr; i++) {
+        for (int j = 0; j < n; j++) {
+            triplets.push_back(Triplet<double>(i, j, A(i, j)));
+            triplets.push_back(Triplet<double>(j, i, A(i, j)));
+        }
+    }
+    
+    hess.setFromTriplets(triplets.begin(), triplets.end());
+}
+
+double backtrackingStepSize(const VectorXd& u, const VectorXd& du, int m)
+{
+    double step = 1.0;
+    for (int i = 0; i < m; i++) {
+        if (du(i) < 0.0) step = min(step, -u(i)/du(i));
+    }
+    
+    return step;
+}
+
+bool isInfeasible(const VectorXd& h, int m)
+{
+    for (int i = 0; i < m; i++) {
+        if (h(i) >= 0.0) return true;
+    }
+    
+    return false;
+}
+
+void Solver::interiorPoint(Handle *handle, int m, int r, bool isFeasible)
+{
+    if (!isFeasible) {
+        if (!findFeasiblePoint()) {
+            cout << "Problem is infeasible" << endl;
+            return;
+        }
+    }
+    
+    int nm = n + m;
+    int nmr = nm + r;
+    double f = 0.0;
+    handle->F(f, x);
+    obj.push_back(f);
+    VectorXd u = VectorXd::Ones(m);
+    VectorXd v = VectorXd::Zero(r);
+    
+    while (true) {
+        // compute update direction
+        VectorXd g(n), h(m), b(r);
+        MatrixXd hg(n, m), A(r, n);
+        computeDense(handle, g, h, hg, A, b, x);
+        
+        SparseMatrix<double> H(n, n), hH(n, n*m);
+        computeSparse(handle, H, hH, x);
+        
+        VectorXd res(nmr);
+        assembleResidual(res, x, u, v, g, h, hg, b, A, n, m, r);
+        
+        SparseMatrix<double> hess(nmr, nmr);
+        assembleHessian(hess, u, H, h, hg, hH, A, n, m, r);
+        
+        VectorXd p;
+        solvePositiveDefinite(hess, -res, p);
+        VectorXd dx = p.block(0, 0, n, 1);
+        VectorXd du = p.block(n, 0, m, 1);
+        VectorXd dv = p.block(nm, 0, r, 1);
+        
+        // compute step size
+        double theta = backtrackingStepSize(u, du, m);
+        VectorXd xn = x + theta*dx;
+        VectorXd un = u + theta*du;
+        VectorXd vn = v + theta*dv;
+        VectorXd resp = res;
+        
+        // maintain feasibility
+        handle->H(h, xn);
+        while (isInfeasible(h, m)) {
+            theta = beta*theta;
+            
+            xn = x + theta*dx;
+            handle->H(h, xn);
+        }
+        
+        // reduce residual
+        computeDense(handle, g, h, hg, A, b, xn);
+        assembleResidual(res, xn, un, vn, g, h, hg, b, A, n, m, r);
+        while (res.norm() > (1.0 - alpha*theta)*resp.norm()) {
+            theta = beta*theta;
+            
+            xn = x + theta*dx;
+            un = u + theta*du;
+            vn = v + theta*dv;
+            computeDense(handle, g, h, hg, A, b, xn);
+            assembleResidual(res, xn, un, vn, g, h, hg, b, A, n, m, r);
+        }
+        
+        // update
+        x = xn;
+        u = un;
+        v = vn;
+        handle->F(f, x);
+        obj.push_back(f);
+        k++;
+    
+        // check termination condition
+        double gap = dualityGap(h, u);
+        double feasibility = sqrt(res.block(0, 0, n, 1).squaredNorm() +
+                                  res.block(nm, 0, r, 1).squaredNorm());
+        if ((feasibility < EPSILON && gap < 2*EPSILON) || k > MAX_ITERS) break;
+    }
+}
+
+void Solver::solve(int method, Handle *handle, int n, int m, int r, bool isFeasible)
 {
     // initialize
     this->n = n;
@@ -186,7 +362,7 @@ void Solver::solve(int method, Handle *handle, int n, int m, int r)
             break;
         case INTERIOR_POINT:
             cout << "Method: Interior Point" << endl;
-            interiorPoint(m, r);
+            interiorPoint(handle, m, r, isFeasible);
             break;
         default:
             break;

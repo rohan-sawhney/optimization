@@ -18,7 +18,8 @@ struct Handle {
     // typedefs
     typedef function<void(double&, const VectorXd&)> ComputeValue;
     typedef function<void(VectorXd&, const VectorXd&)> ComputeVector;
-    typedef function<void(SparseMatrix<double>&, const VectorXd&)> ComputeMatrix;
+    typedef function<void(MatrixXd&, const VectorXd&)> ComputeDenseMatrix;
+    typedef function<void(SparseMatrix<double>&, const VectorXd&)> ComputeSparseMatrix;
     
     // constructor
     Handle() {}
@@ -26,14 +27,16 @@ struct Handle {
     // member variables
     ComputeValue F;
     ComputeVector gradF;
-    ComputeMatrix hessF;
+    ComputeSparseMatrix hessF;
     
-    ComputeMatrix b; // r x 1
-    ComputeMatrix A; // r x n
+    // Inequality constraints H(x) <= 0
+    ComputeVector H;            // [h1  h2  ... hm]
+    ComputeDenseMatrix gradH;   // [∇h1 ∇h2 ... ∇hm]: n x m
+    ComputeSparseMatrix hessH;  // [Δh1 Δh2 ... Δhm]: n x (mxn)
     
-    ComputeVector H;     // [h1  h2  ... hm]
-    ComputeMatrix gradH; // [∇h1 ∇h2 ... ∇hm]: n x m
-    ComputeMatrix hessH; // [Δh1 Δh2 ... Δhm]: n x (mxn)
+    // Equality constraints Ax = b
+    ComputeVector b;            // r x 1
+    ComputeDenseMatrix A;       // r x n
 };
 
 class Solver {
@@ -42,7 +45,7 @@ public:
     Solver() {}
     
     // solve
-    void solve(int method, Handle *handle, int n, int m = 10, int r = 10);
+    void solve(int method, Handle *handle, int n, int m = 10, int r = 10, bool isFeasible = false);
     
     // member variables
     VectorXd x;
@@ -59,7 +62,7 @@ private:
     void lbfgs(int m);
     
     // interior point
-    void interiorPoint(int m, int r);
+    void interiorPoint(Handle *handle, int m, int r, bool isFeasible);
     
     // member variables
     int n;
