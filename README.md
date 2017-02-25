@@ -1,2 +1,2 @@
 # Optimization 
-Implements common convex optimization algorithms such as Gradient Descent, Newton's method, LBFGS and Primal Dual Interior Point method
+Implements algorithms for unconstrained (GD, Newton, LBFGS) and constrained (Primal Dual Interior Point) minimization 

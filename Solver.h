@@ -12,20 +12,28 @@ using namespace Eigen;
 #define GRADIENT_DESCENT 0
 #define NEWTON 1
 #define LBFGS 2
+#define INTERIOR_POINT 3
 
 struct Handle {
     // typedefs
-    typedef function<void(double&, const VectorXd&)> ComputeObjective;
-    typedef function<void(VectorXd&, const VectorXd&)> ComputeGradient;
-    typedef function<void(SparseMatrix<double>&, const VectorXd&)> ComputeHessian;
+    typedef function<void(double&, const VectorXd&)> ComputeValue;
+    typedef function<void(VectorXd&, const VectorXd&)> ComputeVector;
+    typedef function<void(SparseMatrix<double>&, const VectorXd&)> ComputeMatrix;
     
     // constructor
     Handle() {}
     
     // member variables
-    ComputeObjective computeObjective;
-    ComputeGradient computeGradient;
-    ComputeHessian computeHessian;
+    ComputeValue F;
+    ComputeVector gradF;
+    ComputeMatrix hessF;
+    
+    ComputeMatrix b; // r x 1
+    ComputeMatrix A; // r x n
+    
+    ComputeVector H;     // [h1  h2  ... hm]
+    ComputeMatrix gradH; // [∇h1 ∇h2 ... ∇hm]: n x m
+    ComputeMatrix hessH; // [Δh1 Δh2 ... Δhm]: n x (mxn)
 };
 
 class Solver {
@@ -34,7 +42,7 @@ public:
     Solver() {}
     
     // solve
-    void solve(int method, int n, Handle *handle, int m = 10);
+    void solve(int method, Handle *handle, int n, int m = 10, int r = 10);
     
     // member variables
     VectorXd x;
@@ -49,6 +57,9 @@ private:
     
     // lbfgs
     void lbfgs(int m);
+    
+    // interior point
+    void interiorPoint(int m, int r);
     
     // member variables
     int n;

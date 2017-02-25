@@ -2,33 +2,33 @@
 #include <iostream>
 
 struct Rosenbrock {
-    void computeObjective(double& objective, const VectorXd& u)
+    void objective(double& f, const VectorXd& u)
     {
         double x = u(0);
         double y = u(1);
         
-        objective = 100*pow(y - x*x, 2) + pow(1 - x, 2);
+        f = 100*pow(y - x*x, 2) + pow(1 - x, 2);
     }
     
-    void computeGradient(VectorXd& gradient, const VectorXd& u)
+    void gradient(VectorXd& g, const VectorXd& u)
     {
         double x = u(0);
         double y = u(1);
         
-        gradient(0) = -400*x*(y - x*x) - 2*(1 - x);
-        gradient(1) = 200*(y - x*x);
+        g(0) = -400*x*(y - x*x) - 2*(1 - x);
+        g(1) = 200*(y - x*x);
     }
     
-    void computeHessian(SparseMatrix<double>& hessian, const VectorXd& u)
+    void hessian(SparseMatrix<double>& H, const VectorXd& u)
     {
         double x = u(0);
         double y = u(1);
         
-        hessian.insert(0, 0) = 1200*x*x - 400*y + 2;
-        hessian.insert(0, 1) = -400*x;
-        hessian.insert(1, 0) = -400*x;
-        hessian.insert(1, 1) = 200;
-        hessian.makeCompressed();
+        H.insert(0, 0) = 1200*x*x - 400*y + 2;
+        H.insert(0, 1) = -400*x;
+        H.insert(1, 0) = -400*x;
+        H.insert(1, 1) = 200;
+        H.makeCompressed();
     }
 };
 
@@ -38,22 +38,22 @@ void solveRosenbrock()
     Rosenbrock rosen;
     
     Handle handle;
-    handle.computeObjective = bind(&Rosenbrock::computeObjective, &rosen, _1, _2);
-    handle.computeGradient = bind(&Rosenbrock::computeGradient, &rosen, _1, _2);
-    handle.computeHessian = bind(&Rosenbrock::computeHessian, &rosen, _1, _2);
+    handle.F = bind(&Rosenbrock::objective, &rosen, _1, _2);
+    handle.gradF = bind(&Rosenbrock::gradient, &rosen, _1, _2);
+    handle.hessF = bind(&Rosenbrock::hessian, &rosen, _1, _2);
     
     Solver solver;
     
     // Solve using gradient descent
-    solver.solve(GRADIENT_DESCENT, 2, &handle);
+    solver.solve(GRADIENT_DESCENT, &handle, 2);
     cout << "x: " << solver.x(0) << " y: " << solver.x(1) << "\n" << endl;
-    
-    // Solve using gradient descent
-    solver.solve(NEWTON, 2, &handle);
+        
+    // Solve using newton's method
+    solver.solve(NEWTON, &handle, 2);
     cout << "x: " << solver.x(0) << " y: " << solver.x(1) << "\n" << endl;
-    
-    // Solve using gradient descent
-    solver.solve(LBFGS, 2, &handle);
+
+    // Solve using lbfgs
+    solver.solve(LBFGS, &handle, 2);
     cout << "x: " << solver.x(0) << " y: " << solver.x(1) << "\n" << endl;
 }
 

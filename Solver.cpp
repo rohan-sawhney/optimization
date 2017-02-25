@@ -9,32 +9,31 @@
 void Solver::gradientDescent()
 {
     double f = 0.0, tp = 1.0;
-    handle->computeObjective(f, x);
+    handle->F(f, x);
     obj.push_back(f);
     VectorXd xp = VectorXd::Zero(n);
-    VectorXd v = VectorXd::Zero(n);
 
     while (true) {
         // compute momentum term
-        v = x;
+        VectorXd v = x;
         if (k > 1) v += (k-2)*(x - xp)/(k+1);
         
         // compute update direction
         VectorXd g(n);
-        handle->computeGradient(g, v);
+        handle->gradF(g, v);
         
         // compute step size
         double t = tp;
         double fp = 0.0;
         VectorXd xn = v - t*g;
         VectorXd xnv = xn - v;
-        handle->computeObjective(fp, v);
-        handle->computeObjective(f, xn);
+        handle->F(fp, v);
+        handle->F(f, xn);
         while (f > fp + g.dot(xnv) + xnv.dot(xnv)/(2*t)) {
             t = beta*t;
             xn = v - t*g;
             xnv = xn - v;
-            handle->computeObjective(f, xn);
+            handle->F(f, xn);
         }
     
         // update
@@ -60,17 +59,17 @@ void solvePositiveDefinite(const SparseMatrix<double>& A,
 void Solver::newton()
 {
     double f = 0.0;
-    handle->computeObjective(f, x);
+    handle->F(f, x);
     obj.push_back(f);
 
     const double alpha = 0.5;
     while (true) {
         // compute update direction
         VectorXd g(n);
-        handle->computeGradient(g, x);
+        handle->gradF(g, x);
 
         SparseMatrix<double> H(n, n);
-        handle->computeHessian(H, x);
+        handle->hessF(H, x);
 
         VectorXd p;
         solvePositiveDefinite(H, g, p);
@@ -78,10 +77,10 @@ void Solver::newton()
         // compute step size
         double t = 1.0;
         double fp = f;
-        handle->computeObjective(f, x - t*p);
+        handle->F(f, x - t*p);
         while (f > fp - alpha*t*g.dot(p)) {
             t = beta*t;
-            handle->computeObjective(f, x - t*p);
+            handle->F(f, x - t*p);
         }
         
         // terminate if f is not finite
@@ -100,10 +99,10 @@ void Solver::newton()
 void Solver::lbfgs(int m)
 {
     double f = 0.0;
-    handle->computeObjective(f, x);
+    handle->F(f, x);
     obj.push_back(f);
     VectorXd g(n);
-    handle->computeGradient(g, x);
+    handle->gradF(g, x);
     deque<VectorXd> s;
     deque<VectorXd> y;
     
@@ -130,17 +129,17 @@ void Solver::lbfgs(int m)
         // compute step size
         double t = 1.0;
         double fp = f;
-        handle->computeObjective(f, x + t*p);
+        handle->F(f, x + t*p);
         while (f > fp + alpha*t*g.dot(p)) {
             t = beta*t;
-            handle->computeObjective(f, x + t*p);
+            handle->F(f, x + t*p);
         }
         
         // update
         VectorXd xp = x;
         VectorXd gp = g;
         x += t*p;
-        handle->computeGradient(g, x);
+        handle->gradF(g, x);
         obj.push_back(f);
         k++;
         
@@ -157,7 +156,12 @@ void Solver::lbfgs(int m)
     }
 }
 
-void Solver::solve(int method, int n, Handle *handle, int m)
+void Solver::interiorPoint(int m, int r)
+{
+    // TODO: phase 1 and phase 2
+}
+
+void Solver::solve(int method, Handle *handle, int n, int m, int r)
 {
     // initialize
     this->n = n;
@@ -179,6 +183,10 @@ void Solver::solve(int method, int n, Handle *handle, int m)
         case LBFGS:
             cout << "Method: LBFGS" << endl;
             lbfgs(m);
+            break;
+        case INTERIOR_POINT:
+            cout << "Method: Interior Point" << endl;
+            interiorPoint(m, r);
             break;
         default:
             break;
